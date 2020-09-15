@@ -71,9 +71,19 @@ public = [
 
 @app.before_request
 def log_request_info():
+    app.logger.info('>>> Start Request.')
+    app.logger.info('URL: %s', request.url)
     app.logger.info('Headers: %s', request.headers)
     app.logger.info('Cookies: %s', request.cookies)
     app.logger.info('Body: %s', request.get_data())
+    app.logger.info('<<< Finish Request.')
+
+@app.after_request
+def after_request_func(response):
+    app.logger.info('>>> Start Response.')
+    app.logger.info('Headers: %s', response.headers)
+    app.logger.info('<<< Finish Response.')
+    return response
 
 # A default route
 @app.route('/', methods=['GET'])
