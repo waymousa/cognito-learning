@@ -1,9 +1,12 @@
-import flask, logging
+import flask, logging, watchtower
 from flask import request, jsonify
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
+handler = watchtower.CloudWatchLogHandler(log_group='cognito-learning', stream_name='api', create_log_group=False, use_queues=False)
+app.logger.addHandler(handler)
+logging.getLogger("werkzeug").addHandler(handler)
 
 secrets = [
     {
@@ -82,6 +85,7 @@ def log_request_info():
 def after_request_func(response):
     app.logger.info('>>> Start Response.')
     app.logger.info('Headers: %s', response.headers)
+    app.logger.info('Body: %s', response.get_data())
     app.logger.info('<<< Finish Response.')
     return response
 
