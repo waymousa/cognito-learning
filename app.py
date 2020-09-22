@@ -90,12 +90,16 @@ homepage = '''
 
 logoutpage = '''
     <html>
+        <!--
         <script>
             function logout (){
                 window.location.href = "https://sams-test-site.com"
             }
         </script>
-        <body onload="logout();">
+        <body onload="logout();"> 
+        -->
+        <p>You are logged out.</P>
+        <a href="https://sams-test-site/">Home</a>
     </html>
 '''
 
