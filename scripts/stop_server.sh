@@ -1,2 +1,8 @@
 #!/bin/bash
-kill `pgrep python`
+
+pgrep python
+
+if [ $? -eq 0 ]
+then
+  kill `pgrep python`
+fi
