@@ -10,7 +10,7 @@ The python application has 4 URI you can invoke:
 
 # Architecture
 
-Diagram to do.
+![Architecture Diagram](cognito-learning.jpg "Architecture diagram")
 
 # Building the environment
 
