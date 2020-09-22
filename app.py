@@ -99,7 +99,7 @@ logoutpage = '''
         <body onload="logout();"> 
         -->
         <p>You are logged out.</P>
-        <a href="https://sams-test-site/">Home</a>
+        <a href="https://sams-test-site.com/">Home</a>
     </html>
 '''
 

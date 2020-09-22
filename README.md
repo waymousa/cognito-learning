@@ -3,10 +3,10 @@ This is a learning tool for examining how AWS Application Load Balancer, Cognito
 
 The python application has 4 URI you can invoke:
 
-/v1/public - a list of public data
-/v1/secrets - a list of secret information that requires an authenticated user
-/ - a default uri that displays a simple HTML page
-/logout - a logout url that resets the ALB cookies
+**/v1/public** - a list of public data
+**/v1/secrets** - a list of secret information that requires an authenticated user
+**/** - a default uri that displays a simple HTML page
+**/logout** - a logout url that resets the ALB cookies
 
 # Architecture
 
