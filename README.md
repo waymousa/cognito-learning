@@ -58,6 +58,26 @@ When you refresh the secrets page the following steps happen:
 6. The **/oauth2/idpresponse** endpoint sends a **302** to the **/v1/secrets** and may also reset a new **AWSELBAuthSessionCookie** cookie.
 7. The broswer executes a GET on the resource **/v1/secrets**.
 
-If you are already logged in and you execute the /logout api call but without actually invoking the Cognito /logout endpoint, this happens:
+Next, lets see what happens when we execute the Loug out procedures using the proper logout link.
 
-1. Browser executes a GET on the **/logout** api, passing the **AWSELBAuthSessionCookie**.
+1. Browser clicks on the logout href to which executes the following **GET** request **https://sams-test-site.auth.us-east-1.amazoncognito.com/logout?client_id=6uri15vh9sig0e0j3fimc656m6&logout_uri=https://sams-test-site.com/logout**.  The request also sends the cookies **Cognito**, **XSRF-token**, **csrf-state**, **csrf-state-legacy** and **congnito-fl**.
+2. The **/logout** cognito endpoint responds with a **302** to the **/logout** api endpoint.  It also sets the **Cognito**, **XSRF-token** cookies to expired.
+3. The browser executes the **GET** on the **/logout** api endpoint and sends the **AWSELBAuthSessionCookie** cookie.
+4. The /logout api respons with a **200** and the **AWSELBAuthSessionCookie** has been expired.
+
+Now, to access the /v1/secrets page again you will be redirected to the login page.
+
+Supposing we are already logged in and you execute the /logout api call but without actually invoking the Cognito /logout endpoint, then this happens:
+
+1. Browser executes a GET on the **/logout** api, passing the **AWSELBAuthSessionCookie** cookie in the request headers.
+2. The **/logout** api reponds with a 200 and the **AWSELBAuthSessionCookie** cookie has been expired.
+3. Click on the **/v1/secrets** api call and note what happens now.
+4. The load balancer recognises a path that requires authentication and sends a **302** to the **/oauth2/authorise** endpoint that contains the **client_id=whatever**, **redirect_uri=https://host/oauth2/idpresponse**, **response_type=code**,  **scope=openid** and **state**.
+5. The browser executes a **GET** on the **/oauth2/authorise** endpoint and **oh dear** it has still got the cookies **Cognito**, **XSRF-token**, **csrf-state**, **csrf-state-legacy** and **congnito-fl** so these are sent along with the request.
+6. The **/oauth2/authorise** endpoint sends a **302** to the **/oauth2/idpresponse** endpoint with a **code** and **state** set in the redirect url!  The header **x-amz-cognito-request-id** is also set.  not sure what that is.
+7.  The browser executes a **GET** on the **/oauth2/idpresponse** endpoint with a **code** and **state** set in the redirect url.
+9.  The **/oauth2/idpresponse** responds with a **302** to the **/v1/secrets** page with a new **AWSELBAuthSessionCookie** cookie.
+10. The Browser executes a **GET** on the **/v1/secrets** resource with the new **AWSELBAuthSessionCookie** cookie.
+11. The EC2 instance sends back a **200** and the resource.
+
+The key problem here is the cookies at step 4 **Cognito**, **XSRF-token**, **csrf-state**, **csrf-state-legacy** and **congnito-fl** are not expired so the authorize endpoint sends a valid **code** and **status** to the browser.  Those cookies are not set by the initial **302** response from the ALB to the browser, unless they are hidden in the **state** header but I don't think so.  I guess the browser must store them hidden somewhere and only uses them or sees them when it issues the **/oauth2/authorise** request.  Because the **/oauth2/authorize** request is sucessful, the **302** has a valid **code**  and **state**, which the ALB accepts and responds with a new ALB session cookie.  The key point of hack here is to have a valid **code** and **state** when hitting the ALB.
