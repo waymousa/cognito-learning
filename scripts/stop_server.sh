@@ -4,5 +4,5 @@ pgrep python
 
 if [ $? -eq 0 ]
 then
-  kill `pgrep python`
+  pkill python
 fi
