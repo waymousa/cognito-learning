@@ -1,4 +1,4 @@
-import flask, logging, watchtower
+import flask, logging, watchtower, aws_encryption_sdk, botocore.session
 from flask import request, jsonify, make_response
 from waitress import serve
 
@@ -141,6 +141,24 @@ def api_secrets():
 # A route to return all of the available entries in our catalog.
 @app.route('/v1/public', methods=['GET'])
 def api_public():
+    return jsonify(public)
+
+# A route to encrypt a string using a data key from KMS. Demo of Sigv4, EC2 metadata and Encryption SDK
+@app.route('/v1/encrypt', methods=['GET'])
+def api_encrypt():
+    existing_botocore_session = botocore.session.Session()
+    kms_key_provider = aws_encryption_sdk.KMSMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
+    my_plaintext = b'This is some super secret data!  Yup, sure is!'
+    my_ciphertext, encryptor_header = aws_encryption_sdk.encrypt(source=my_plaintext, key_provider=kms_key_provider)
+    decrypted_plaintext, decryptor_header = aws_encryption_sdk.decrypt(source=my_ciphertext, key_provider=kms_key_provider)
+    assert my_plaintext == decrypted_plaintext
+    assert encryptor_header.encryption_context == decryptor_header.encryption_context
+    stuff = [{'plaintext': my_plaintext,'cyphertext': my_ciphertext}]
+    return jsonify(stuff)
+
+# A route to decrypt a string using a data key from KMS. Demo of Sigv4, EC2 metadata and Encryption SDK
+@app.route('/v1/decrypt', methods=['GET'])
+def api_decrypt():
     return jsonify(public)
 
 if __name__ == "__main__":
