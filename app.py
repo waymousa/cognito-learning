@@ -1,6 +1,7 @@
-import flask, logging, watchtower, aws_encryption_sdk, botocore.session
-from flask import request, jsonify, make_response
+import flask, logging, watchtower, aws_encryption_sdk, botocore.session, boto3, json, base64, datetime, hashlib, hmac, requests
+from flask import request, jsonify, make_response, Response
 from waitress import serve
+from boto3.dynamodb.types import Binary
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -8,8 +9,12 @@ logging.basicConfig(level=logging.INFO)
 handler = watchtower.CloudWatchLogHandler(log_group='cognito-learning', stream_name='api', create_log_group=False, use_queues=False)
 app.logger.addHandler(handler)
 app.logger.setLevel(logging.DEBUG)
-logging.getLogger("watiress").setLevel(logging.WARNING)
-logging.getLogger("watiress").addHandler(handler)
+logging.getLogger("waitress").setLevel(logging.WARNING)
+logging.getLogger("waitress").addHandler(handler)
+logging.getLogger("aws_encryption_sdk").setLevel(logging.WARNING)
+logging.getLogger("aws_encryption_sdk").addHandler(handler)
+logging.getLogger("botocore").setLevel(logging.WARNING)
+logging.getLogger("botocore").addHandler(handler)
 
 secrets = [
     {
@@ -43,34 +48,42 @@ secrets = [
     
 ]
 
-public = [
+
+data = [
     {
         'name': 'Boris Johnson',
-        'party': 'Conservative Party'
+        'party': 'Conservative Party',
+        'number': '1-333-444-5555'
     },
     {
         'name': 'Kier Starmer',
-        'party': 'Labour Party'
+        'party': 'Labour Party',
+        'number': '1-444-555-6666'
     },
     {
         'name': 'Ian Blackford',
-        'party': 'Scottish National Party'
+        'party': 'Scottish National Party',
+        'number': '1-555-666-7777'
     },
     {
         'name': 'Ed Davey',
-        'party': 'Liberal Democrats'
+        'party': 'Liberal Democrats',
+        'number': '1-666-777-8888'
     },
     {
         'name': 'Jeffrey Donaldson',
-        'party': 'Democratic Unionist Party'
+        'party': 'Democratic Unionist Party',
+        'number': '1-777-888-9999'
     },
     {
         'name': 'Liz Saville Roberts',
-        'party': 'Plaid Cymru'
+        'party': 'Plaid Cymru',
+        'number': '1-888-999-0000'
     },
         {
-        'name': 'Caroline Lucas',
-        'party': 'Green Party of England and Wales'
+        'name': 'Caroline Lucas',    
+        'party': 'Green Party of England and Wales',
+        'number': '1-999-000-1111'
     }
     
 ]
@@ -83,6 +96,12 @@ homepage = '''
         <a href="/v1/public">Public Stuff</a>
         <p>Here is some secret stuff...</p>
         <a href="/v1/secrets">Secret Stuff</a>
+        <p>Here is an api call to encrypt and load some data...</p>
+        <a href="/v1/loaddata">Load some data</a>
+        <p>Here is a call to decrypt some stuff</p>
+        <a href="/v1/decrypt">Decrypt Stuff</a>
+        <p>Here is a api call to get the credentials</p>
+        <a href="/v1/sigv4gen">Get Credentials</a>
         <p>Here is a logout link...</p>
         <a href="https://sams-test-site.auth.us-east-1.amazoncognito.com/logout?client_id=6uri15vh9sig0e0j3fimc656m6&logout_uri=https://sams-test-site.com/logout">Logout</a>
     </html>
@@ -99,6 +118,20 @@ logoutpage = '''
         <body onload="logout();"> 
         -->
         <p>You are logged out.</P>
+        <a href="https://sams-test-site.com/">Home</a>
+    </html>
+'''
+
+errorpage = '''
+    <html>
+        <p>Something went wrong, check the logs.</P>
+        <a href="https://sams-test-site.com/">Home</a>
+    </html>
+'''
+
+sucesspage = '''
+    <html>
+        <p>That probably worked, check the logs.</P>
         <a href="https://sams-test-site.com/">Home</a>
     </html>
 '''
@@ -141,25 +174,198 @@ def api_secrets():
 # A route to return all of the available entries in our catalog.
 @app.route('/v1/public', methods=['GET'])
 def api_public():
-    return jsonify(public)
+    app.logger.debug('>>> api_public.')
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('Politians')
+    response = table.scan()
+    app.logger.debug(response)
+    items = response.get('Items', [])
+    app.logger.debug(items)
+    converted_items = []    
+    for item in items:
+        app.logger.debug(item)
+        name = item['name']
+        app.logger.debug(name)
+        party = item['party']
+        app.logger.debug(party)
+        number = item['number'].value
+        app.logger.debug(number)
+        converted_item = {'name':name, 'party':party, 'number':base64.b64encode(number, altchars=None)}
+        converted_items.append(converted_item)
+    app.logger.debug(converted_items)
 
-# A route to encrypt a string using a data key from KMS. Demo of Sigv4, EC2 metadata and Encryption SDK
-@app.route('/v1/encrypt', methods=['GET'])
-def api_encrypt():
+    app.logger.debug('<<< api_public.')
+    return jsonify(converted_items)
+
+# A route to encrypt a string using a data key from KMS. Demo of Encryption SDK.
+@app.route('/v1/loaddata', methods=['GET'])
+def api_loaddata():
+    app.logger.debug('>>> api_loaddata.')
     existing_botocore_session = botocore.session.Session()
     kms_key_provider = aws_encryption_sdk.KMSMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
-    my_plaintext = b'This is some super secret data!  Yup, sure is!'
-    my_ciphertext, encryptor_header = aws_encryption_sdk.encrypt(source=my_plaintext, key_provider=kms_key_provider)
-    decrypted_plaintext, decryptor_header = aws_encryption_sdk.decrypt(source=my_ciphertext, key_provider=kms_key_provider)
-    assert my_plaintext == decrypted_plaintext
-    assert encryptor_header.encryption_context == decryptor_header.encryption_context
-    stuff = [{'plaintext': my_plaintext,'cyphertext': my_ciphertext}]
-    return jsonify(stuff)
+    #username = 'Samuel Waymouth'
+    #address = '39 Belmont Lane, Stanmore, London, HA7 2PU, United Kingdom.'
+    #app.logger.debug(username)
+    #username_c, username_eh = aws_encryption_sdk.encrypt(source=username, key_provider=kms_key_provider)
+    #username_d, username_dh = aws_encryption_sdk.decrypt(source=username_c, key_provider=kms_key_provider)
+    #assert username == username_d.decode('utf-8')
+    #assert username_eh.encryption_context == username_dh.encryption_context
+    #app.logger.debug('username_c = %s' % username_c)
+    #app.logger.debug(address)
+    #address_c, address_eh = aws_encryption_sdk.encrypt(source=address, key_provider=kms_key_provider)
+    #address_d, address_dh = aws_encryption_sdk.decrypt(source=address_c, key_provider=kms_key_provider)
+    #assert address == address_d.decode('utf-8')
+    #assert address_eh.encryption_context == address_dh.encryption_context
+    #app.logger.debug('address_c = %s' % address_c)
+    #item = [{'userid': 'swaym', 'username': username_c, 'address': address_c}]
+    #app.logger.debug('item = %s' % item)
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.create_table(
+        TableName='Politians',
+        KeySchema=[
+            {
+                'AttributeName': 'name',
+                'KeyType': 'HASH'
+            },
+                        {
+                'AttributeName': 'party',
+                'KeyType': 'RANGE'
+            }
+        ],
+        AttributeDefinitions=[
+            {
+                'AttributeName': 'name',
+                'AttributeType': 'S'
+            },
+            {
+                'AttributeName': 'party',
+                'AttributeType': 'S'
+            }
+        ],
+        ProvisionedThroughput={
+            'ReadCapacityUnits': 5,
+            'WriteCapacityUnits': 5
+        }
+    )
+    # Wait until the table exists.
+    table.meta.client.get_waiter('table_exists').wait(TableName='Politians')
+    for item in data:
+        name = item['name']
+        party = item['party']
+        number = item['number']
+        number_c, number_eh = aws_encryption_sdk.encrypt(source=number, key_provider=kms_key_provider)
+        number_d, number_dh = aws_encryption_sdk.decrypt(source=number_c, key_provider=kms_key_provider)
+        assert number == number_d.decode('utf-8')
+        assert number_eh.encryption_context == number_dh.encryption_context
+        table.put_item(Item={'name': name, 'party': party, 'number': number_c})
+    res = make_response(sucesspage)
+    app.logger.debug('<<< api_loaddata.')
+    return res
 
-# A route to decrypt a string using a data key from KMS. Demo of Sigv4, EC2 metadata and Encryption SDK
+# A route to decrypt a string using a data key from KMS. Demo of Encryption SDK.
 @app.route('/v1/decrypt', methods=['GET'])
 def api_decrypt():
-    return jsonify(public)
+    app.logger.debug('>>> api_decrypt.')
+    existing_botocore_session = botocore.session.Session()
+    kms_key_provider = aws_encryption_sdk.KMSMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('cognito-learning-encrypted-stuff')
+    userrecord = table.get_item(Key={'userid': 'swaym'})
+    app.logger.debug('userrecord = %s' % userrecord)
+    userjson = userrecord['Item']
+    app.logger.debug('userjson = %s' % userjson)
+    username_c = userjson['username'].value
+    app.logger.debug('username_c = %s' % username_c)
+    address_c = userjson['address'].value
+    app.logger.debug('address_c = %s' % address_c)
+    username_d, username_dh = aws_encryption_sdk.decrypt(source=username_c, key_provider=kms_key_provider)
+    address_d, address_dh = aws_encryption_sdk.decrypt(source=address_c, key_provider=kms_key_provider)
+    item = [{'userid': 'swaym', 'username': username_d.decode('utf-8'), 'address': address_d.decode('utf-8')}]
+    app.logger.debug('item = %s' % item)
+    app.logger.debug('<<< api_decrypt.')
+    return jsonify(item)
+
+# A route to generate a SigV4 request manually that gest the S3 list buckets for the current role.
+@app.route('/v1/sigv4gen', methods=['GET'])
+def api_sigv4gen():
+    app.logger.debug('>>> api_sigv4gen.')
+    method = 'GET'
+    service = 'ec2'
+    host = 'ec2.amazonaws.com'
+    region = 'us-east-1'
+    endpoint = 'https://ec2.amazonaws.com'
+    request_parameters = 'Action=DescribeRegions&Version=2013-10-15'
+    existing_botocore_session = botocore.session.Session()
+    credentials = existing_botocore_session.get_credentials()
+    app.logger.debug('credentials = %s' % credentials)
+    app.logger.debug('access_key = %s' % credentials.access_key)
+    app.logger.debug('secret_key = %s' % credentials.secret_key)
+    app.logger.debug('token = %s' % credentials.token)
+    access_key = credentials.access_key
+    secret_key = credentials.secret_key
+    session_token = credentials.token
+    t = datetime.datetime.utcnow()
+    app.logger.debug('t = %s' % t)
+    amzdate = t.strftime('%Y%m%dT%H%M%SZ')
+    app.logger.debug('amzdate = %s' % amzdate)
+    datestamp = t.strftime('%Y%m%d')
+    app.logger.debug('datestamp = %s' % datestamp)
+    canonical_uri = '/'
+    app.logger.debug('canonical_uri = %s' % canonical_uri)
+    canonical_querystring = request_parameters
+    app.logger.debug('canonical_querystring = %s' % canonical_querystring)
+    canonical_headers = 'host:' + host + '\n' + 'x-amz-date:' + amzdate + '\n' + 'x-amz-security-token:' + session_token + '\n' 
+    app.logger.debug('canonical_headers = %s' % canonical_headers)
+    signed_headers = 'host;x-amz-date;x-amz-security-token'
+    app.logger.debug('signed_headers = %s' % signed_headers)
+    payload_hash = hashlib.sha256(('').encode('utf-8')).hexdigest()
+    app.logger.debug('payload_hash = %s' % payload_hash)
+    canonical_request = method + '\n' + canonical_uri + '\n' + canonical_querystring + '\n' + canonical_headers + '\n' + signed_headers + '\n' + payload_hash
+    app.logger.debug('canonical_request = %s' % canonical_request)
+    algorithm = 'AWS4-HMAC-SHA256'
+    app.logger.debug('algorithm = %s' % algorithm)
+    credential_scope = datestamp + '/' + region + '/' + service + '/' + 'aws4_request'
+    app.logger.debug('credential_scope = %s' % credential_scope)
+    string_to_sign = algorithm + '\n' +  amzdate + '\n' +  credential_scope + '\n' +  hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()
+    app.logger.debug('string_to_sign = %s' % string_to_sign)
+    signing_key = getSignatureKey(secret_key, datestamp, region, service)
+    app.logger.debug('signing_key = %s' % signing_key)
+    signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()
+    app.logger.debug('signature = %s' % signature)
+    authorization_header = algorithm + ' ' + 'Credential=' + access_key + '/' + credential_scope + ', ' +  'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + signature
+    app.logger.debug('authorization_header = %s' % authorization_header)
+    headers = {'x-amz-date':amzdate, 'Authorization':authorization_header, 'X-Amz-Security-Token':session_token}
+    app.logger.debug('headers: %s' % headers)
+    request_url = endpoint + '?' + canonical_querystring
+    app.logger.debug('request_url: %s' % request_url)    
+    r = requests.get(request_url, headers=headers)
+    app.logger.debug('response: %s' % r)
+    app.logger.debug('headers: %s' % r.headers)
+    app.logger.debug('cookies: %s' % r.cookies)
+    app.logger.debug('text: %s' % r.text)
+    xml = r.text
+    app.logger.debug('<<< api_sigv4gen.')
+    return Response(xml, mimetype='text/xml')
+
+    # https://docs.aws.amazon.com/general/latest/gr/sigv4_signing.html
+    # https://docs.aws.amazon.com/code-samples/latest/catalog/python-signv4-v4-signing-get-authheader.py.html
+    # https://docs.aws.amazon.com/general/latest/gr/signature-v4-examples.html#signature-v4-examples-python 
+
+def sign(key, msg):
+    hmac_new = hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
+    app.logger.debug('hmac_new: %s' % hmac_new)
+    return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()
+
+def getSignatureKey(key, dateStamp, regionName, serviceName):
+    kDate = sign(('AWS4' + key).encode('utf-8'), dateStamp)
+    app.logger.debug('kDate: %s' % kDate)
+    kRegion = sign(kDate, regionName)
+    app.logger.debug('kRegion: %s' % kRegion)
+    kService = sign(kRegion, serviceName)
+    app.logger.debug('kService: %s' % kService)
+    kSigning = sign(kService, 'aws4_request')
+    app.logger.debug('kSigning: %s' % kSigning)
+    return kSigning
 
 if __name__ == "__main__":
    #app.run() ##Replaced with below code to run it using waitress 
