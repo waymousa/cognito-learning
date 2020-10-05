@@ -2,6 +2,7 @@ import flask, logging, watchtower, aws_encryption_sdk, botocore.session, boto3, 
 from flask import request, jsonify, make_response, Response
 from waitress import serve
 from boto3.dynamodb.types import Binary
+from aws_encryption_sdk.identifiers import CommitmentPolicy
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -169,7 +170,34 @@ def logout():
 # A route to return all of the available entries in our catalog.
 @app.route('/v1/secrets', methods=['GET'])
 def api_secrets():
-    return jsonify(secrets)
+    app.logger.debug('>>> api_secrets.')
+    existing_botocore_session = botocore.session.Session()
+    client = aws_encryption_sdk.EncryptionSDKClient(commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_ALLOW_DECRYPT)
+    kms_key_provider = aws_encryption_sdk.StrictAwsKmsMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('Politians')
+    response = table.scan()
+    app.logger.debug(response)
+    items = response.get('Items', [])
+    app.logger.debug(items)
+    converted_items = []    
+    for item in items:
+        app.logger.debug(item)
+        name = item['name']
+        app.logger.debug(name)
+        party = item['party']
+        app.logger.debug(party)
+        number = item['number'].value
+        app.logger.debug(number)
+        number_b64 = base64.b64encode(number, altchars=None)
+        app.logger.debug(number_b64)
+        number_utf8 = number_b64.decode('utf-8')
+        app.logger.debug(number_utf8)
+        converted_item = {'name':name, 'party':party, 'number':number_utf8}
+        converted_items.append(converted_item)
+    app.logger.debug(converted_items)    
+    app.logger.debug('<<< api_secrets.')
+    return jsonify(converted_items)
 
 # A route to return all of the available entries in our catalog.
 @app.route('/v1/public', methods=['GET'])
@@ -190,7 +218,11 @@ def api_public():
         app.logger.debug(party)
         number = item['number'].value
         app.logger.debug(number)
-        converted_item = {'name':name, 'party':party, 'number':base64.b64encode(number, altchars=None)}
+        number_b64 = base64.b64encode(number, altchars=None)
+        app.logger.debug(number_b64)
+        number_utf8 = number_b64.decode('utf-8')
+        app.logger.debug(number_utf8)
+        converted_item = {'name':name, 'party':party, 'number':number_utf8}
         converted_items.append(converted_item)
     app.logger.debug(converted_items)
 
@@ -267,7 +299,8 @@ def api_loaddata():
 def api_decrypt():
     app.logger.debug('>>> api_decrypt.')
     existing_botocore_session = botocore.session.Session()
-    kms_key_provider = aws_encryption_sdk.KMSMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
+    client = aws_encryption_sdk.EncryptionSDKClient(commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_ALLOW_DECRYPT)
+    kms_key_provider = aws_encryption_sdk.StrictAwsKmsMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table('cognito-learning-encrypted-stuff')
     userrecord = table.get_item(Key={'userid': 'swaym'})
@@ -278,8 +311,10 @@ def api_decrypt():
     app.logger.debug('username_c = %s' % username_c)
     address_c = userjson['address'].value
     app.logger.debug('address_c = %s' % address_c)
-    username_d, username_dh = aws_encryption_sdk.decrypt(source=username_c, key_provider=kms_key_provider)
-    address_d, address_dh = aws_encryption_sdk.decrypt(source=address_c, key_provider=kms_key_provider)
+    username_d, username_dh = client.decrypt(source=username_c, key_provider=kms_key_provider)
+    #username_d, username_dh = aws_encryption_sdk.decrypt(source=username_c, key_provider=kms_key_provider)
+    address_d, address_dh = client.decrypt(source=address_c, key_provider=kms_key_provider)
+    #address_d, address_dh = aws_encryption_sdk.decrypt(source=address_c, key_provider=kms_key_provider)
     item = [{'userid': 'swaym', 'username': username_d.decode('utf-8'), 'address': address_d.decode('utf-8')}]
     app.logger.debug('item = %s' % item)
     app.logger.debug('<<< api_decrypt.')
