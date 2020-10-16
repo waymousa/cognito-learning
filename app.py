@@ -187,13 +187,10 @@ def api_secrets():
         app.logger.debug(name)
         party = item['party']
         app.logger.debug(party)
-        number = item['number'].value
+        number_c = item['number'].value
         app.logger.debug(number)
-        number_b64 = base64.b64encode(number, altchars=None)
-        app.logger.debug(number_b64)
-        number_utf8 = number_b64.decode('utf-8')
-        app.logger.debug(number_utf8)
-        converted_item = {'name':name, 'party':party, 'number':number_utf8}
+        number_d, number_dh = client.decrypt(source=address_c, key_provider=kms_key_provider)
+        converted_item = {'name':name, 'party':party, 'number':number_d.decode('utf-8')}
         converted_items.append(converted_item)
     app.logger.debug(converted_items)    
     app.logger.debug('<<< api_secrets.')
