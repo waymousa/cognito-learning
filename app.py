@@ -159,6 +159,14 @@ def log_request_info():
         app.logger.debug('decoded_jwt_headers: %s', decoded_jwt_headers)
         decoded_json = json.loads(decoded_jwt_headers)
         app.logger.debug('decoded_json: %s', decoded_json)
+        url = 'https://public-keys.auth.elb.us-east-1.amazonaws.com/' + kid
+        app.logger.debug('url: %s', url)
+        req = requests.get(url)
+        app.logger.debug('req: %s', req)
+        pub_key = req.text
+        app.logger.debug('pub_key: %s', pub_key)
+        payload = jwt.decode(encoded_jwt, pub_key, algorithms=['ES256'])
+        app.logger.debug('payload: %s', payload)
     app.logger.debug('Body: %s', request.get_data())
     app.logger.debug('<<< Finish Request.')
 
