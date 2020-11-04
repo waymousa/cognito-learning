@@ -1,4 +1,4 @@
-import flask, logging, watchtower, aws_encryption_sdk, botocore.session, boto3, json, base64, datetime, hashlib, hmac, requests
+import flask, logging, watchtower, aws_encryption_sdk, botocore.session, boto3, json, base64, datetime, hashlib, hmac, requests, jwt
 from flask import request, jsonify, make_response, Response
 from waitress import serve
 from boto3.dynamodb.types import Binary
@@ -148,6 +148,16 @@ def log_request_info():
     app.logger.debug('x-amzn-oidc-accesstoken: %s', request.headers.get('x-amzn-oidc-accesstoken'))
     app.logger.debug('x-amzn-oidc-identity: %s', request.headers.get('x-amzn-oidc-identity'))
     app.logger.debug('x-amzn-oidc-data: %s', request.headers.get('x-amzn-oidc-data'))
+    if request.headers.get('x-amzn-oidc-data') != 'None':        
+        encoded_jwt = request.headers.get('x-amzn-oidc-data')
+        jwt_headers = encoded_jwt.split('.')[0]
+        app.logger.debug('jwt_headers: %s', jwt_headers)
+        decoded_jwt_headers = base64.b64decode(jwt_headers)
+        app.logger.debug('decoded_jwt_headers: %s', decoded_jwt_headers)
+        decoded_jwt_headers = decoded_jwt_headers.decode("utf-8")
+        app.logger.debug('decoded_jwt_headers: %s', decoded_jwt_headers)
+        decoded_json = json.loads(decoded_jwt_headers)
+        app.logger.debug('decoded_json: %s', decoded_json)
     app.logger.debug('Body: %s', request.get_data())
     app.logger.debug('<<< Finish Request.')
 
