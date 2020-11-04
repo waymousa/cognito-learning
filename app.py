@@ -176,9 +176,6 @@ def logout():
 @app.route('/v1/secrets', methods=['GET'])
 def api_secrets():
     app.logger.debug('>>> api_secrets.')
-    app.logger.debug('x-amzn-oidc-accesstoken: %s', request.headers.get('x-amzn-oidc-accesstoken'))
-    app.logger.debug('x-amzn-oidc-identity: %s', request.headers.get('x-amzn-oidc-identity'))
-    app.logger.debug('x-amzn-oidc-data: %s', request.headers.get('x-amzn-oidc-data'))
     existing_botocore_session = botocore.session.Session()
     client = aws_encryption_sdk.EncryptionSDKClient(commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_ALLOW_DECRYPT)
     kms_key_provider = aws_encryption_sdk.StrictAwsKmsMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
