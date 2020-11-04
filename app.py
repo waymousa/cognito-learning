@@ -148,7 +148,8 @@ def log_request_info():
     app.logger.debug('x-amzn-oidc-accesstoken: %s', request.headers.get('x-amzn-oidc-accesstoken'))
     app.logger.debug('x-amzn-oidc-identity: %s', request.headers.get('x-amzn-oidc-identity'))
     app.logger.debug('x-amzn-oidc-data: %s', request.headers.get('x-amzn-oidc-data'))
-    if request.headers.get('x-amzn-oidc-data') != 'None':        
+    if request.headers.get('x-amzn-oidc-data') is not None:
+        app.logger.debug('Found an odic data header to process')
         encoded_jwt = request.headers.get('x-amzn-oidc-data')
         jwt_headers = encoded_jwt.split('.')[0]
         app.logger.debug('jwt_headers: %s', jwt_headers)
