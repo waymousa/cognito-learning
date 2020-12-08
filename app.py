@@ -431,7 +431,7 @@ def getSignatureKey(key, dateStamp, regionName, serviceName):
     app.logger.debug('kSigning: %s' % kSigning)
     return kSigning
 
-def checkEnabled():
+def checkEnabled(sub):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table('cognito-learning-users')
     response = table.get_item(Key={'sub' : sub})
