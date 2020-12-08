@@ -199,6 +199,10 @@ def api_secrets():
     app.logger.debug('>>> api_secrets.')
     sub = getUserName()
     app.logger.debug('sub: %s', sub)
+    #if checkAuthorised(sub):
+    #    app.logger.debug('authorised')
+    if checkEnabled(sub):
+        app.logger.debug('enabled')
     existing_botocore_session = botocore.session.Session()
     client = aws_encryption_sdk.EncryptionSDKClient(commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_ALLOW_DECRYPT)
     kms_key_provider = aws_encryption_sdk.StrictAwsKmsMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
@@ -428,6 +432,14 @@ def getSignatureKey(key, dateStamp, regionName, serviceName):
     return kSigning
 
 def checkEnabled():
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('cognito-learning-users')
+    response = table.get_item(Key={'sub' : sub})
+    app.logger.debug('response: %s', response)
+    item = response['Item']
+    app.logger.debug('item: %s', item)
+    status = item['Enabled']
+    app.logger.debug('status: %s', status)
     return True
 
 def checkAuthorised():
