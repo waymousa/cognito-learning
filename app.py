@@ -440,7 +440,7 @@ def checkEnabled(sub):
     app.logger.debug('item: %s', item)
     status = item['Enabled']
     app.logger.debug('status: %s', status)
-    return True
+    return status
 
 def checkAuthorised():
     return True
