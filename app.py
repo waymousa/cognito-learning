@@ -197,6 +197,8 @@ def logout():
 @app.route('/v1/secrets', methods=['GET'])
 def api_secrets():
     app.logger.debug('>>> api_secrets.')
+    sub = getUserName()
+    app.logger.debug('sub: %s', sub)
     existing_botocore_session = botocore.session.Session()
     client = aws_encryption_sdk.EncryptionSDKClient(commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_ALLOW_DECRYPT)
     kms_key_provider = aws_encryption_sdk.StrictAwsKmsMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
@@ -424,6 +426,36 @@ def getSignatureKey(key, dateStamp, regionName, serviceName):
     kSigning = sign(kService, 'aws4_request')
     app.logger.debug('kSigning: %s' % kSigning)
     return kSigning
+
+def checkEnabled():
+    return True
+
+def checkAuthorised():
+    return True
+
+def getUserName():
+    encoded_jwt = request.headers.get('x-amzn-oidc-data')
+    jwt_headers = encoded_jwt.split('.')[0]
+    app.logger.debug('jwt_headers: %s', jwt_headers)
+    decoded_jwt_headers = base64.b64decode(jwt_headers)
+    app.logger.debug('decoded_jwt_headers: %s', decoded_jwt_headers)
+    decoded_jwt_headers = decoded_jwt_headers.decode("utf-8")
+    app.logger.debug('decoded_jwt_headers: %s', decoded_jwt_headers)
+    decoded_json = json.loads(decoded_jwt_headers)
+    app.logger.debug('decoded_json: %s', decoded_json)
+    kid = decoded_json['kid']
+    app.logger.debug('kid: %s', kid)
+    url = 'https://public-keys.auth.elb.us-east-1.amazonaws.com/' + kid
+    app.logger.debug('url: %s', url)
+    req = requests.get(url)
+    app.logger.debug('req: %s', req)
+    pub_key = req.text
+    app.logger.debug('pub_key: %s', pub_key)
+    payload = jwt.decode(encoded_jwt, pub_key, algorithms=['ES256'])
+    app.logger.debug('payload: %s', payload)
+    sub = payload['sub']
+    app.logger.debug('sub: %s', sub)
+    return sub
 
 if __name__ == "__main__":
    #app.run() ##Replaced with below code to run it using waitress 
