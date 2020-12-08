@@ -1,4 +1,5 @@
 import json, logging, os, boto3
+from boto3.dynamodb.conditions import Key
 logger = logging.getLogger()
 logger.setLevel(os.environ['log'])
 
@@ -25,30 +26,15 @@ def lambda_handler(event, context):
     userPoolId = requestParameters['userPoolId']
     logging.info('userPoolId: %s' % userPoolId)
 
-    # Check for the eventName cases
-    if eventName == 'ConfirmSignUp':
+    if eventName == 'AdminDeleteUser':
         # Update the DynamoDb for users
-        logging.info('ConfirmSignUp')
+        logging.info('AdminDeleteUser')
         additionalEventData = cognitoEvent['additionalEventData']
         sub = additionalEventData['sub']
         logging.info('sub: %s' % sub)
         dynamodb = boto3.resource('dynamodb')
         table = dynamodb.Table(os.environ['usertable'])
-        Item = {'sub' : sub, 'Username' : username, 'Enabled' : userenabled, 'UserStatus' : userstatus}
-        logging.debug('Item: %s' % Item)
-        table.put_item(Item={'sub' : sub, 'Username' : username, 'Enabled' : userenabled, 'UserStatus' : userstatus})
-        # check the item was added
-        response = table.get_item(Key={'sub' : sub})
-        item = response['Item']
-        logging.debug('item: %s' % item)
-    elif eventName == 'AdminDeleteUser':
-        # Update the DynamoDb for users
-        logging.info('AdminDeleteUser')
-        username = requestParameters['username']
-        logging.info('username: %s' % username)
-        dynamodb = boto3.resource('dynamodb')
-        table = dynamodb.Table(os.environ['usertable'])
-        response = table.delete_item(Key={'Username' : username})
+        response = table.delete_item(Key={'sub' : sub})
     else:
         logging.info('eventName: %s is not processed by this function.' % eventName)
     return response
