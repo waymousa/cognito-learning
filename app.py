@@ -139,6 +139,13 @@ sucesspage = '''
     </html>
 '''
 
+notauthorised = '''
+    <html>
+        <p>You are not authroised for this page.</P>
+        <a href="https://sams-test-site.com/">Home</a>
+    </html>
+'''
+
 @app.before_request
 def log_request_info():
     app.logger.debug('>>> Start Request.')
@@ -203,6 +210,8 @@ def api_secrets():
     #    app.logger.debug('authorised')
     if checkEnabled(sub):
         app.logger.debug('enabled')
+    else:
+        return notauthorised
     existing_botocore_session = botocore.session.Session()
     client = aws_encryption_sdk.EncryptionSDKClient(commitment_policy=CommitmentPolicy.REQUIRE_ENCRYPT_ALLOW_DECRYPT)
     kms_key_provider = aws_encryption_sdk.StrictAwsKmsMasterKeyProvider(botocore_session=existing_botocore_session, key_ids=['arn:aws:kms:us-east-1:038180129555:key/45d982fa-69c0-4e10-88a3-f7cd8e48bb9c'])
