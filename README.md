@@ -81,3 +81,5 @@ Supposing we are already logged in and you execute the /logout api call but with
 11. The EC2 instance sends back a **200** and the resource.
 
 The key problem here is the cookies at step 4 **Cognito**, **XSRF-token**, **csrf-state**, **csrf-state-legacy** and **congnito-fl** are not expired so the authorize endpoint sends a valid **code** and **status** to the browser.  Those cookies are not set by the initial **302** response from the ALB to the browser, unless they are hidden in the **state** header but I don't think so.  I guess the browser must store them hidden somewhere and only uses them or sees them when it issues the **/oauth2/authorise** request.  Because the **/oauth2/authorize** request is sucessful, the **302** has a valid **code**  and **state**, which the ALB accepts and responds with a new ALB session cookie.  The key point of hack here is to have a valid **code** and **state** when hitting the ALB.
+
+# New section for the lambda functions to-do
